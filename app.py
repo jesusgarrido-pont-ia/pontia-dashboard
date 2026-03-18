@@ -20,27 +20,32 @@ st.set_page_config(
 )
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
+# Colores corporativos PontIA
+# Primarios: Azul #111E2D · Verde #173A32 · Amarillo #F6FAB2
+# Secundarios: Azul Cielo #5683D2 · Verde Salvia #AABCA3 · Ámbar #BB812F · Naranja #EE7015
 st.markdown("""
 <style>
-  .stApp { background-color: #0a0a14; }
-  [data-testid="stSidebar"] { background-color: #12121f; border-right: 1px solid #1e1e35; }
-  .stTabs [data-baseweb="tab-list"] { background:#12121f; border-radius:10px; padding:4px; gap:3px; }
-  .stTabs [data-baseweb="tab"] { color:#6b7280; font-weight:500; border-radius:7px; padding:8px 18px; }
-  .stTabs [aria-selected="true"] { background:#4c1d95 !important; color:white !important; }
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+  * { font-family: 'Manrope', sans-serif !important; }
+  .stApp { background-color: #111E2D; }
+  [data-testid="stSidebar"] { background-color: #0D1820; border-right: 1px solid #173A32; }
+  .stTabs [data-baseweb="tab-list"] { background:#0D1820; border-radius:10px; padding:4px; gap:3px; }
+  .stTabs [data-baseweb="tab"] { color:#808080; font-weight:500; border-radius:7px; padding:8px 18px; }
+  .stTabs [aria-selected="true"] { background:#173A32 !important; color:#F6FAB2 !important; }
   div[data-testid="stMetric"] {
-    background:#141428; border:1px solid #1e1e35; border-radius:12px; padding:14px 18px;
+    background:#0D1820; border:1px solid #173A32; border-radius:12px; padding:14px 18px;
   }
-  div[data-testid="stMetric"] label { color:#6b7280 !important; font-size:0.78rem !important; }
-  div[data-testid="stMetric"] [data-testid="stMetricValue"] { color:#c084fc !important; font-size:1.5rem !important; font-weight:700 !important; }
-  h1,h2,h3,h4 { color:#c084fc !important; }
+  div[data-testid="stMetric"] label { color:#AABCA3 !important; font-size:0.78rem !important; }
+  div[data-testid="stMetric"] [data-testid="stMetricValue"] { color:#F6FAB2 !important; font-size:1.5rem !important; font-weight:700 !important; }
+  h1,h2,h3,h4 { color:#F6FAB2 !important; }
   .hero { font-size:2.2rem; font-weight:800;
-    background:linear-gradient(135deg,#c084fc,#818cf8,#2dd4bf);
+    background:linear-gradient(135deg,#5683D2,#F6FAB2,#AABCA3);
     -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-  .sec { color:#c084fc; font-size:.85rem; font-weight:600; text-transform:uppercase;
-    letter-spacing:1px; border-bottom:1px solid #1e1e35; padding-bottom:5px; margin-bottom:12px; }
-  .badge-ok   { background:#14532d; color:#86efac; padding:2px 8px; border-radius:20px; font-size:.75rem; }
-  .badge-warn { background:#78350f; color:#fde68a; padding:2px 8px; border-radius:20px; font-size:.75rem; }
-  .badge-bad  { background:#7f1d1d; color:#fca5a5; padding:2px 8px; border-radius:20px; font-size:.75rem; }
+  .sec { color:#F6FAB2; font-size:.85rem; font-weight:600; text-transform:uppercase;
+    letter-spacing:1px; border-bottom:1px solid #173A32; padding-bottom:5px; margin-bottom:12px; }
+  .badge-ok   { background:#173A32; color:#AABCA3; padding:2px 8px; border-radius:20px; font-size:.75rem; }
+  .badge-warn { background:#3A2800; color:#F6FAB2; padding:2px 8px; border-radius:20px; font-size:.75rem; }
+  .badge-bad  { background:#6C0000; color:#EE7015; padding:2px 8px; border-radius:20px; font-size:.75rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -134,19 +139,26 @@ def delta_color(v, inv=False):
         return "normal" if ok else "inverse"
     except: return "off"
 
+# ─── PALETA CORPORATIVA PONTIA ───────────────────────────────────────────────
 C = {
-    "purple":"#c084fc","indigo":"#818cf8","teal":"#2dd4bf",
-    "green":"#34d399","amber":"#fbbf24","red":"#f87171",
-    "pink":"#f472b6","sky":"#38bdf8","orange":"#fb923c",
+    "purple": "#5683D2",   # Azul Cielo PontIA
+    "indigo": "#744A6E",   # Morado Oscuro PontIA
+    "teal":   "#AABCA3",   # Verde Salvia PontIA
+    "green":  "#AABCA3",   # Verde Salvia PontIA
+    "amber":  "#BB812F",   # Ámbar Oscuro PontIA
+    "red":    "#EE7015",   # Naranja Intenso PontIA
+    "pink":   "#F6FAB2",   # Amarillo Botón PontIA (acento principal)
+    "sky":    "#5683D2",   # Azul Cielo PontIA
+    "orange": "#EE7015",   # Naranja Intenso PontIA
 }
-PAL = list(C.values())
+PAL = ["#5683D2","#F6FAB2","#AABCA3","#BB812F","#EE7015","#744A6E","#173A32","#808080"]
 CHART = dict(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#e5e7eb", family="Inter,sans-serif"),
-    title_font=dict(size=13, color="#c084fc"),
-    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#9ca3af", size=10)),
-    xaxis=dict(gridcolor="#1a1a2e", zerolinecolor="#1a1a2e", tickfont=dict(color="#9ca3af",size=10)),
-    yaxis=dict(gridcolor="#1a1a2e", zerolinecolor="#1a1a2e", tickfont=dict(color="#9ca3af",size=10)),
+    font=dict(color="#EFEEEA", family="Manrope,sans-serif"),
+    title_font=dict(size=13, color="#F6FAB2"),
+    legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#AABCA3", size=10)),
+    xaxis=dict(gridcolor="#1a2d3a", zerolinecolor="#1a2d3a", tickfont=dict(color="#808080",size=10)),
+    yaxis=dict(gridcolor="#1a2d3a", zerolinecolor="#1a2d3a", tickfont=dict(color="#808080",size=10)),
     margin=dict(l=5, r=15, t=40, b=5),
 )
 
@@ -341,7 +353,7 @@ def load_file_bytes(path: str) -> bytes:
 
 with st.sidebar:
     st.markdown("## 🧠 PontIA KPIs")
-    st.markdown('<div style="color:#4b5563;font-size:.8rem;margin-bottom:12px">Dashboard de Gestión</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color:#808080;font-size:.8rem;margin-bottom:12px">Dashboard de Gestión</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("### 📂 Archivo Excel")
     uploaded = st.file_uploader(
@@ -409,7 +421,7 @@ with st.sidebar:
     if not sel_progs: sel_progs = all_progs
 
     st.markdown("---")
-    st.markdown(f'<div style="color:#374151;font-size:.72rem;text-align:center">Datos hasta: {ultimo_dia.strftime("%d/%m/%Y") if isinstance(ultimo_dia, (datetime, pd.Timestamp)) else ultimo_dia}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color:#4C4C4C;font-size:.72rem;text-align:center">Datos hasta: {ultimo_dia.strftime("%d/%m/%Y") if isinstance(ultimo_dia, (datetime, pd.Timestamp)) else ultimo_dia}</div>', unsafe_allow_html=True)
 
 # ─── FILTRAR DATOS ────────────────────────────────────────────────────────────
 df_f = df_daily[df_daily['mes'].isin(sel_meses_num)].copy()
@@ -432,7 +444,7 @@ roas        = total_fact  / total_gasto if total_gasto > 0 else 0
 st.markdown('<div class="hero">🧠 PontIA · Dashboard KPIs 2026</div>', unsafe_allow_html=True)
 mes_actual_name = MESES.get(mes_actual_num, "") if mes_actual_num else ""
 if isinstance(ultimo_dia, (datetime, pd.Timestamp)):
-    st.markdown(f'<div style="color:#4b5563;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#c084fc">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#c084fc">{mes_actual_name}</b></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="color:#808080;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#F6FAB2">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#F6FAB2">{mes_actual_name}</b></div>', unsafe_allow_html=True)
 
 # ─── KPIs GLOBALES ────────────────────────────────────────────────────────────
 st.markdown('<div class="sec">Resumen Acumulado (YTD)</div>', unsafe_allow_html=True)
@@ -532,7 +544,7 @@ with tabs[0]:
             T(fig).update_layout(
                 title="📣 Inversión MKT y CPL por Mes",
                 yaxis2=dict(overlaying='y', side='right',
-                            gridcolor='#1a1a2e', tickfont=dict(color='#9ca3af', size=10)),
+                            gridcolor='#1a2d3a', tickfont=dict(color='#808080', size=10)),
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -543,7 +555,7 @@ with tabs[0]:
             fig.add_trace(go.Scatter(
                 x=df_m['mes_name'], y=df_m['conversion'].apply(lambda x: x*100 if x else None),
                 name='Conversión %', line=dict(color=C['pink'], width=2),
-                fill='tozeroy', fillcolor='rgba(244,114,182,0.1)',
+                fill='tozeroy', fillcolor='rgba(246,250,178,0.08)',
                 mode='lines+markers',
             ))
             T(fig).update_layout(title="📈 Tasa de Conversión por Mes")
@@ -555,7 +567,7 @@ with tabs[0]:
             fig.add_trace(go.Scatter(
                 x=df_m['mes_name'], y=df_m['precio_medio'],
                 name='Precio Medio', line=dict(color=C['sky'], width=2),
-                fill='tozeroy', fillcolor='rgba(56,189,248,0.1)',
+                fill='tozeroy', fillcolor='rgba(86,131,210,0.1)',
                 mode='lines+markers',
             ))
             T(fig).update_layout(title="🏷️ Precio Medio por Mes (€)")
@@ -609,7 +621,7 @@ with tabs[1]:
                     fuente_leads.get(FUENTE_LABELS.get(fuente, fuente), 0) + df_f[col_name].sum()
         df_fl = pd.DataFrame(list(fuente_leads.items()), columns=['fuente','leads']).sort_values('leads', ascending=False)
         fig = px.bar(df_fl, x='fuente', y='leads', title='🔍 Leads por Fuente (YTD)',
-                     color='leads', color_continuous_scale=['#3b0764','#c084fc'],
+                     color='leads', color_continuous_scale=['#111E2D','#5683D2'],
                      text=df_fl['leads'].apply(lambda x: num(x)))
         T(fig).update_traces(textposition='outside').update_layout(coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -662,7 +674,7 @@ with tabs[1]:
             mes_ord = [MESES[m] for m in sorted(MESES.keys()) if MESES[m] in hm.columns]
             hm = hm[mes_ord]
             fig = px.imshow(hm, title='🗺️ Heatmap Leads: Fuente × Mes',
-                            color_continuous_scale=['#0a0a14','#4c1d95','#c084fc'],
+                            color_continuous_scale=['#0D1820','#173A32','#5683D2'],
                             aspect='auto', text_auto=True)
             T(fig).update_layout(coloraxis_showscale=False)
             st.plotly_chart(fig, use_container_width=True)
@@ -707,7 +719,7 @@ with tabs[1]:
                 x=df_m_cpl['mes_name'], y=df_m_cpl['cpl'],
                 mode='lines+markers', name='CPL Medio',
                 line=dict(color=C['amber'], width=2),
-                fill='tozeroy', fillcolor='rgba(251,191,36,0.1)',
+                fill='tozeroy', fillcolor='rgba(187,129,47,0.1)',
             ))
             T(fig).update_layout(title='📉 Evolución CPL Mensual (€)')
             fig.update_yaxes(tickprefix='€')
@@ -744,7 +756,7 @@ with tabs[2]:
         df_fm = df_fm[df_fm['mats'] > 0].sort_values('mats', ascending=False)
         fig = px.bar(df_fm, x='mats', y='fuente', orientation='h',
                      title='📊 Matrículas por Fuente',
-                     color='mats', color_continuous_scale=['#1e1b4b','#818cf8'],
+                     color='mats', color_continuous_scale=['#111E2D','#744A6E'],
                      text=df_fm['mats'].apply(lambda x: f"{x:.0f}"))
         T(fig).update_traces(textposition='outside').update_layout(coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -803,7 +815,7 @@ with tabs[2]:
         if not df_hm.empty:
             pivot = df_hm.pivot_table(index='fuente', columns='programa', values='mats', fill_value=0)
             fig = px.imshow(pivot, title='🗺️ Heatmap Mats: Fuente × Programa',
-                            color_continuous_scale=['#0a0a14','#1e1b4b','#818cf8'],
+                            color_continuous_scale=['#0D1820','#111E2D','#744A6E'],
                             aspect='auto', text_auto='.0f')
             T(fig).update_layout(coloraxis_showscale=False)
             st.plotly_chart(fig, use_container_width=True)
@@ -834,7 +846,7 @@ with tabs[3]:
         df_ff = df_ff[df_ff['fact'] > 0].sort_values('fact', ascending=False)
         fig = px.bar(df_ff, x='fact', y='fuente', orientation='h',
                      title='💰 Facturación por Fuente',
-                     color='fact', color_continuous_scale=['#14532d','#34d399'],
+                     color='fact', color_continuous_scale=['#173A32','#AABCA3'],
                      text=df_ff['fact'].apply(eur))
         T(fig).update_traces(textposition='outside').update_layout(coloraxis_showscale=False)
         st.plotly_chart(fig, use_container_width=True)
@@ -885,7 +897,7 @@ with tabs[3]:
             mode='lines+markers',
             name='Precio Medio',
             line=dict(color=C['sky'], width=2),
-            fill='tozeroy', fillcolor='rgba(56,189,248,0.1)',
+            fill='tozeroy', fillcolor='rgba(86,131,210,0.1)',
         ))
         T(fig).update_layout(title='🏷️ Precio Medio Mensual (€)')
         fig.update_yaxes(tickprefix='€')
@@ -963,7 +975,7 @@ with tabs[4]:
                              textposition='outside'))
         fig.add_hline(y=3, line_dash='dash', line_color=C['green'],
                       annotation_text='Objetivo ROAS 3x',
-                      annotation_font_color='#34d399')
+                      annotation_font_color='#AABCA3')
         T(fig).update_layout(title='📣 ROAS por Canal')
         st.plotly_chart(fig, use_container_width=True)
 
@@ -999,7 +1011,7 @@ with tabs[4]:
             x=df_m_fg['mes_name'], y=df_m_fg['roas'],
             mode='lines+markers', name='ROAS',
             line=dict(color=C['teal'], width=2),
-            fill='tozeroy', fillcolor='rgba(45,212,191,0.1)',
+            fill='tozeroy', fillcolor='rgba(170,188,163,0.1)',
         ))
         fig.add_hline(y=3, line_dash='dash', line_color=C['green'],
                       annotation_text='Objetivo 3x')
@@ -1124,7 +1136,7 @@ with tabs[5]:
                 T(fig).update_layout(
                     title=f'🎓 Matrículas y Facturación Diaria {mes_actual_name}',
                     yaxis2=dict(overlaying='y', side='right',
-                                gridcolor='#1a1a2e', tickfont=dict(color='#9ca3af',size=10)),
+                                gridcolor='#1a2d3a', tickfont=dict(color='#808080',size=10)),
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -1196,7 +1208,7 @@ with tabs[5]:
 # ─── FOOTER ──────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
-    '<div style="text-align:center;color:#1f2937;font-size:.75rem">'
+    '<div style="text-align:center;color:#EFEEEA;font-size:.75rem">'
     '🧠 PontIA KPI Dashboard · Streamlit + Plotly · '
     'Fuente: Cuadro de Gestion Pontia 2026.xlsx'
     '</div>',
