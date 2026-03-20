@@ -46,6 +46,11 @@ st.markdown("""
   .badge-ok   { background:#173A32; color:#AABCA3; padding:2px 8px; border-radius:20px; font-size:.75rem; }
   .badge-warn { background:#3A2800; color:#F6FAB2; padding:2px 8px; border-radius:20px; font-size:.75rem; }
   .badge-bad  { background:#6C0000; color:#EE7015; padding:2px 8px; border-radius:20px; font-size:.75rem; }
+  /* Filtros multiselect — color naranja corporativo PontIA */
+  [data-baseweb="tag"] { background-color: #EE7015 !important; border: none !important; }
+  [data-baseweb="tag"] span { color: #111E2D !important; font-weight: 600 !important; }
+  [data-baseweb="tag"] button { opacity: 1 !important; }
+  [data-baseweb="tag"] button svg { fill: #111E2D !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,7 +63,7 @@ PROG_LABELS = {
     "DATA SCIENCE":                  "Máster Data Science",
     "DATA ANALYTICS & SCIENCE":      "Doble Titulación",
     "IA":                            "Máster IA & Cloud",
-    "IA AVANZADA":                   "Máster IA Avanzada",
+    "IA AVANZADA":                   "FSI en IA Avanzada",
 }
 FUENTE_LABELS = {
     "ORGANICO":             "Orgánico",
@@ -999,23 +1004,60 @@ with tabs[3]:
         fig.update_yaxes(tickprefix='€')
         st.plotly_chart(fig, use_container_width=True)
 
-    # Tabla fact por fuente × programa
+    # Treemap + tabla detalle por fuente × programa
     st.markdown('<div class="sec">Detalle Facturación por Fuente y Programa</div>', unsafe_allow_html=True)
-    hm_fact = []
+    _tree_rows = []
     for col_idx, (fuente, prog) in FACT_MAP.items():
         col_name = f'fact_{fuente}__{prog}'
         if col_name in df_f.columns:
             v = df_f[col_name].sum()
             if v > 0:
-                hm_fact.append({
-                    'Fuente':    FUENTE_LABELS.get(fuente, fuente),
-                    'Programa':  PROG_LABELS.get(prog, prog),
-                    'Fact (€)':  eur(v),
-                    '_sort':     v,
+                _tree_rows.append({
+                    'Fuente':   FUENTE_LABELS.get(fuente, fuente),
+                    'Programa': PROG_LABELS.get(prog, prog),
+                    'Facturación': v,
                 })
-    if hm_fact:
-        df_tbl = pd.DataFrame(hm_fact).sort_values('_sort', ascending=False).drop('_sort', axis=1)
-        st.dataframe(df_tbl, use_container_width=True, hide_index=True)
+    if _tree_rows:
+        df_tree = pd.DataFrame(_tree_rows)
+        # ── Treemap
+        fig = px.treemap(
+            df_tree,
+            path=[px.Constant("Facturación Total"), 'Fuente', 'Programa'],
+            values='Facturación',
+            color='Facturación',
+            color_continuous_scale=['#173A32', '#AABCA3', '#F6FAB2'],
+            title='🌳 Distribución de Facturación: Fuente → Programa',
+        )
+        fig.update_traces(
+            texttemplate='<b>%{label}</b><br>%{value:,.0f}€<br>%{percentRoot:.1%}',
+            hovertemplate='<b>%{label}</b><br>%{value:,.0f}€ (%{percentRoot:.1%})<extra></extra>',
+            textfont_size=12,
+        )
+        T(fig).update_layout(
+            coloraxis_showscale=False,
+            height=420,
+            margin=dict(l=5, r=5, t=40, b=5),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # ── Tabla con barra de progreso
+        df_tbl_f = df_tree.sort_values('Facturación', ascending=False).copy()
+        df_tbl_f['Facturación (€)'] = df_tbl_f['Facturación'].apply(eur)
+        df_tbl_f['% del total']     = df_tbl_f['Facturación'] / df_tbl_f['Facturación'].sum() * 100
+        st.dataframe(
+            df_tbl_f[['Fuente', 'Programa', 'Facturación (€)', '% del total', 'Facturación']],
+            column_config={
+                '% del total': st.column_config.NumberColumn('% del total', format='%.1f%%'),
+                'Facturación': st.column_config.ProgressColumn(
+                    'Peso',
+                    format='€%.0f',
+                    min_value=0,
+                    max_value=float(df_tbl_f['Facturación'].max()),
+                ),
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 5 · MARKETING
@@ -1227,16 +1269,21 @@ with tabs[5]:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── VARIACIÓN VS MES ANTERIOR ──────────────────────────────────────────────
-    st.markdown('<div class="sec">📊 Variación vs Mes Anterior</div>', unsafe_allow_html=True)
+    # ── VARIACIÓN VS MES ANTERIOR (ritmo diario normalizado) ───────────────────
+    st.markdown('<div class="sec">📊 Variación vs Mes Anterior — Ritmo Diario</div>', unsafe_allow_html=True)
     _prev_num = (mes_actual_num - 1) if mes_actual_num else None
     _row_prev = df_mes[df_mes['mes'] == _prev_num] if _prev_num else pd.DataFrame()
+    _row_cur_v = df_mes[df_mes['mes'] == mes_actual_num] if mes_actual_num else pd.DataFrame()
 
     if not _row_prev.empty:
         _rp = _row_prev.iloc[0]
         _prev_name = MESES.get(_prev_num, '')
 
-        # Valores mes actual (DIARIO — reales acumulados)
+        # Días: normalizamos para comparar ritmos diarios
+        _dias_cur_v  = float(_row_cur_v.iloc[0].get('dias_lleva') or 1) if not _row_cur_v.empty else 1
+        _dias_prev_v = float(_rp.get('dias_total') or 1)
+
+        # Valores mes actual (DIARIO — acumulados reales hasta hoy)
         _cur_l  = float(totales_mes.get('leads') or 0)
         _cur_m  = float(totales_mes.get('mats') or 0)
         _cur_f  = float(totales_mes.get('fact') or 0)
@@ -1254,25 +1301,46 @@ with tabs[5]:
         _prev_pm = float(_rp.get('precio_medio') or 0)
         _prev_ro = _prev_f / _prev_g if _prev_g > 0 else 0
 
-        def _dpct(cur, prev):
+        # Ritmo diario de volúmenes (para delta justo)
+        _r_cur_l  = _cur_l  / _dias_cur_v
+        _r_cur_m  = _cur_m  / _dias_cur_v
+        _r_cur_f  = _cur_f  / _dias_cur_v
+        _r_cur_g  = _cur_g  / _dias_cur_v
+        _r_prev_l = _prev_l / _dias_prev_v
+        _r_prev_m = _prev_m / _dias_prev_v
+        _r_prev_f = _prev_f / _dias_prev_v
+        _r_prev_g = _prev_g / _dias_prev_v
+
+        def _dpct_r(r_cur, r_prev):
+            """Delta basado en ritmo diario normalizado."""
+            if r_prev > 0:
+                return f"{(r_cur - r_prev) / r_prev * 100:+.1f}%/día vs {_prev_name}"
+            return None
+
+        def _dpct_abs(cur, prev):
+            """Delta directo para ratios/tasas (conversión, PM, ROAS)."""
             if prev and prev > 0:
                 return f"{(cur - prev) / prev * 100:+.1f}% vs {_prev_name}"
             return None
 
         _va1, _va2, _va3, _va4 = st.columns(4)
-        _va1.metric(f"🎯 Leads",       num(_cur_l),             delta=_dpct(_cur_l,  _prev_l))
-        _va2.metric(f"🎓 Matrículas",  num(_cur_m),             delta=_dpct(_cur_m,  _prev_m))
-        _va3.metric(f"💰 Facturación", eur(_cur_f),             delta=_dpct(_cur_f,  _prev_f))
-        _va4.metric(f"📈 Conversión",  f"{_cur_cv*100:.2f}%",   delta=_dpct(_cur_cv, _prev_cv))
+        _va1.metric("🎯 Leads",        num(_cur_l),           delta=_dpct_r(_r_cur_l,  _r_prev_l))
+        _va2.metric("🎓 Matrículas",   num(_cur_m),           delta=_dpct_r(_r_cur_m,  _r_prev_m))
+        _va3.metric("💰 Facturación",  eur(_cur_f),           delta=_dpct_r(_r_cur_f,  _r_prev_f))
+        _va4.metric("📈 Conversión",   f"{_cur_cv*100:.2f}%", delta=_dpct_abs(_cur_cv, _prev_cv))
 
         _va5, _va6, _va7, _va8 = st.columns(4)
-        _va5.metric(f"🏷️ Precio Medio", eur(_cur_pm),          delta=_dpct(_cur_pm, _prev_pm))
-        _va6.metric(f"💸 Gasto MKT",    eur(_cur_g),            delta=_dpct(_cur_g,  _prev_g),
-                    delta_color="inverse")   # más gasto = rojo (coste)
-        _va7.metric(f"📣 ROAS",         f"{_cur_ro:.1f}x",      delta=_dpct(_cur_ro, _prev_ro))
-        _va8.markdown("")  # columna vacía para alineación
+        _va5.metric("🏷️ Precio Medio", eur(_cur_pm),         delta=_dpct_abs(_cur_pm, _prev_pm))
+        _va6.metric("💸 Gasto MKT",    eur(_cur_g),           delta=_dpct_r(_r_cur_g,  _r_prev_g),
+                    delta_color="inverse")
+        _va7.metric("📣 ROAS",         f"{_cur_ro:.1f}x",     delta=_dpct_abs(_cur_ro, _prev_ro))
+        _va8.markdown("")
 
-        st.caption(f"⚠️ {mes_actual_name} muestra datos reales acumulados hasta hoy (no el mes completo). {_prev_name} es el mes completo.")
+        st.caption(
+            f"📐 Los deltas de Leads, Mats, Facturación y Gasto comparan el **ritmo diario** "
+            f"({int(_dias_cur_v)} días de {mes_actual_name} vs {int(_dias_prev_v)} días completos de {_prev_name}). "
+            f"Conversión, Precio Medio y ROAS se comparan directamente al ser tasas."
+        )
     else:
         st.info("Sin datos del mes anterior para comparar.")
 
