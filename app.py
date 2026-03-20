@@ -10,6 +10,19 @@ import plotly.graph_objects as go
 from datetime import datetime
 import io
 import requests
+import base64
+from pathlib import Path
+
+# ─── LOGO ────────────────────────────────────────────────────────────────────
+def _load_logo(filename: str) -> str | None:
+    """Carga un logo desde assets/ y devuelve base64, o None si no existe."""
+    p = Path(__file__).parent / "assets" / filename
+    if p.exists():
+        return base64.b64encode(p.read_bytes()).decode()
+    return None
+
+_logo_p_b64    = _load_logo("logo_p_yellow.png")    # icono P amarillo
+_logo_word_b64 = _load_logo("logo_word_yellow.png")  # wordmark amarillo
 
 # ─── PAGE CONFIG ─────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -357,7 +370,26 @@ def load_file_bytes(path: str) -> bytes:
         return f.read()
 
 with st.sidebar:
-    st.markdown("## 🧠 PontIA KPIs")
+    # ── Logo en el sidebar ──────────────────────────────────────────────────
+    if _logo_p_b64:
+        st.markdown(
+            f'<img src="data:image/png;base64,{_logo_p_b64}" '
+            f'style="width:72px;margin-bottom:6px;display:block">',
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div style="color:#F6FAB2;font-size:1.1rem;font-weight:800;'
+            'letter-spacing:1px;margin-bottom:2px">PontIA KPIs</div>',
+            unsafe_allow_html=True,
+        )
+    elif _logo_word_b64:
+        st.markdown(
+            f'<img src="data:image/png;base64,{_logo_word_b64}" '
+            f'style="width:130px;margin-bottom:6px;display:block">',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown("## 🧠 PontIA KPIs")
     st.markdown('<div style="color:#808080;font-size:.8rem;margin-bottom:12px">Dashboard de Gestión</div>', unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("### 📂 Archivo Excel")
@@ -446,7 +478,25 @@ cpl         = total_gasto / total_leads if total_leads > 0 else 0
 roas        = total_fact  / total_gasto if total_gasto > 0 else 0
 
 # ─── HEADER ──────────────────────────────────────────────────────────────────
-st.markdown('<div class="hero">🧠 PontIA · Dashboard KPIs 2026</div>', unsafe_allow_html=True)
+if _logo_word_b64:
+    # Wordmark + subtítulo
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">'
+        f'<img src="data:image/png;base64,{_logo_word_b64}" style="height:44px">'
+        f'<span style="color:#808080;font-size:1rem;font-weight:500">· Dashboard KPIs 2026</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+elif _logo_p_b64:
+    st.markdown(
+        f'<div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">'
+        f'<img src="data:image/png;base64,{_logo_p_b64}" style="height:48px">'
+        f'<span class="hero">PontIA · Dashboard KPIs 2026</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown('<div class="hero">🧠 PontIA · Dashboard KPIs 2026</div>', unsafe_allow_html=True)
 mes_actual_name = MESES.get(mes_actual_num, "") if mes_actual_num else ""
 if isinstance(ultimo_dia, (datetime, pd.Timestamp)):
     st.markdown(f'<div style="color:#808080;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#F6FAB2">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#F6FAB2">{mes_actual_name}</b></div>', unsafe_allow_html=True)
