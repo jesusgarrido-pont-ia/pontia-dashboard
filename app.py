@@ -447,16 +447,74 @@ if isinstance(ultimo_dia, (datetime, pd.Timestamp)):
     st.markdown(f'<div style="color:#808080;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#F6FAB2">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#F6FAB2">{mes_actual_name}</b></div>', unsafe_allow_html=True)
 
 # ─── KPIs GLOBALES ────────────────────────────────────────────────────────────
+# Variación vs mes anterior
+_meses_ord = sorted(df_mes[df_mes['leads'].notna() & (df_mes['leads'] > 0)]['mes'].tolist())
+_delta_leads = _delta_mats = _delta_fact = None
+if len(_meses_ord) >= 2:
+    _m_ult  = _meses_ord[-1]
+    _m_prev = _meses_ord[-2]
+    _r_ult  = df_mes[df_mes['mes'] == _m_ult].iloc[0]
+    _r_prev = df_mes[df_mes['mes'] == _m_prev].iloc[0]
+    if _r_prev['leads'] and _r_prev['leads'] > 0:
+        _delta_leads = f"{((_r_ult['leads'] or 0) - _r_prev['leads']) / _r_prev['leads'] * 100:+.1f}% vs {MESES[_m_prev]}"
+    if _r_prev['mats'] and _r_prev['mats'] > 0:
+        _delta_mats  = f"{((_r_ult['mats']  or 0) - _r_prev['mats'])  / _r_prev['mats']  * 100:+.1f}% vs {MESES[_m_prev]}"
+    if _r_prev['fact'] and _r_prev['fact'] > 0:
+        _delta_fact  = f"{((_r_ult['fact']  or 0) - _r_prev['fact'])  / _r_prev['fact']  * 100:+.1f}% vs {MESES[_m_prev]}"
+
 st.markdown('<div class="sec">Resumen Acumulado (YTD)</div>', unsafe_allow_html=True)
 c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
-c1.metric("🎯 Leads",          num(total_leads))
-c2.metric("🎓 Matrículas",     num(total_mats))
-c3.metric("💰 Facturación",    eur(total_fact))
+c1.metric("🎯 Leads",          num(total_leads),   delta=_delta_leads)
+c2.metric("🎓 Matrículas",     num(total_mats),    delta=_delta_mats)
+c3.metric("💰 Facturación",    eur(total_fact),    delta=_delta_fact)
 c4.metric("📈 Conversión",     f"{conversion*100:.2f}%")
 c5.metric("🏷️ Precio Medio",  eur(precio_medio))
 c6.metric("💸 Gasto MKT",      eur(total_gasto))
 c7.metric("📣 ROAS",           f"{roas:.1f}x")
 st.markdown("<br>", unsafe_allow_html=True)
+
+# ─── SEMÁFORO KPIs MES ACTUAL ─────────────────────────────────────────────────
+def _sema(ratio):
+    if ratio is None: return "#1a2d3a", "⬜", "Sin datos"
+    try:
+        r = float(ratio)
+        if r >= 0.9: return "#0f2918", "🟢", f"{r*100:.0f}% obj."
+        if r >= 0.7: return "#2a1e00", "🟡", f"{r*100:.0f}% obj."
+        return "#3d0f00", "🔴", f"{r*100:.0f}% obj."
+    except: return "#1a2d3a", "⬜", "Sin datos"
+
+_vs_l = vs_fcst_mes.get('leads'); _vs_m = vs_fcst_mes.get('mats'); _vs_f = vs_fcst_mes.get('fact')
+_bg_l, _ic_l, _tx_l = _sema(_vs_l)
+_bg_m, _ic_m, _tx_m = _sema(_vs_m)
+_bg_f, _ic_f, _tx_f = _sema(_vs_f)
+_fcst_l = num(fcst_mes.get('leads') or 0)
+_fcst_m = num(fcst_mes.get('mats') or 0)
+_fcst_f = eur(fcst_mes.get('fact') or 0)
+st.markdown(f"""
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+  <div style="background:{_bg_l};border:1px solid #1a2d3a;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.5rem">{_ic_l}</span>
+    <div>
+      <div style="color:#808080;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Leads · Mes actual vs FCST</div>
+      <div style="color:#EFEEEA;font-weight:700;font-size:.92rem">{_tx_l} &nbsp;·&nbsp; Obj: {_fcst_l}</div>
+    </div>
+  </div>
+  <div style="background:{_bg_m};border:1px solid #1a2d3a;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.5rem">{_ic_m}</span>
+    <div>
+      <div style="color:#808080;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Matrículas · Mes actual vs FCST</div>
+      <div style="color:#EFEEEA;font-weight:700;font-size:.92rem">{_tx_m} &nbsp;·&nbsp; Obj: {_fcst_m}</div>
+    </div>
+  </div>
+  <div style="background:{_bg_f};border:1px solid #1a2d3a;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+    <span style="font-size:1.5rem">{_ic_f}</span>
+    <div>
+      <div style="color:#808080;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px">Facturación · Mes actual vs FCST</div>
+      <div style="color:#EFEEEA;font-weight:700;font-size:.92rem">{_tx_f} &nbsp;·&nbsp; Obj: {_fcst_f}</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
 tabs = st.tabs([
@@ -820,6 +878,58 @@ with tabs[2]:
             T(fig).update_layout(coloraxis_showscale=False)
             st.plotly_chart(fig, use_container_width=True)
 
+    # ── CONVERSIÓN POR FUENTE + EMBUDO ────────────────────────────────────────
+    st.markdown('<div class="sec">Conversión por Fuente y Embudo</div>', unsafe_allow_html=True)
+    col5, col6 = st.columns(2)
+
+    with col5:
+        conv_data = []
+        for fuente in all_fuentes:
+            lbl = FUENTE_LABELS.get(fuente, fuente)
+            lead_cols_f = [f'lead_{fuente}__{p}' for p in set(p for _, p in LEAD_MAP.values()) if f'lead_{fuente}__{p}' in df_f.columns]
+            mat_cols_f  = [f'mat_{fuente}__{p}'  for p in set(p for _, p in MATS_MAP.values()) if f'mat_{fuente}__{p}'  in df_f.columns]
+            tot_leads_f = df_f[lead_cols_f].sum().sum() if lead_cols_f else 0
+            tot_mats_f  = df_f[mat_cols_f].sum().sum()  if mat_cols_f  else 0
+            if tot_leads_f > 0:
+                conv_data.append({
+                    'Fuente': lbl,
+                    'Leads': tot_leads_f,
+                    'Matrículas': tot_mats_f,
+                    'Conv %': tot_mats_f / tot_leads_f * 100,
+                })
+        if conv_data:
+            df_conv = pd.DataFrame(conv_data).sort_values('Conv %', ascending=True)
+            norm = df_conv['Conv %'].max() or 1
+            colors = [
+                f"rgba({int(86 + (246-86)*v/norm)},{int(131 + (250-131)*v/norm)},{int(210 + (178-210)*v/norm)},0.85)"
+                for v in df_conv['Conv %']
+            ]
+            fig = go.Figure(go.Bar(
+                x=df_conv['Conv %'], y=df_conv['Fuente'], orientation='h',
+                marker_color=colors,
+                text=[f"{v:.1f}%" for v in df_conv['Conv %']],
+                textposition='outside',
+                customdata=np.stack([df_conv['Leads'], df_conv['Matrículas']], axis=1),
+                hovertemplate='<b>%{y}</b><br>Conv: %{x:.1f}%<br>Leads: %{customdata[0]:.0f}<br>Mats: %{customdata[1]:.0f}<extra></extra>',
+            ))
+            T(fig).update_layout(title='📊 Tasa de Conversión por Fuente (Leads → Mats)')
+            fig.update_xaxes(ticksuffix='%')
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col6:
+        # Funnel: Leads → Matrículas global
+        if total_leads > 0:
+            fig = go.Figure(go.Funnel(
+                y=['🎯 Leads captados', '🎓 Matrículas cerradas'],
+                x=[total_leads, total_mats],
+                textposition='inside',
+                textinfo='value+percent initial',
+                marker=dict(color=[C['sky'], C['indigo']]),
+                connector=dict(line=dict(color='#1a2d3a', width=1)),
+            ))
+            T(fig).update_layout(title='🔽 Embudo Global: Leads → Matrículas')
+            st.plotly_chart(fig, use_container_width=True)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 4 · FACTURACIÓN
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1045,6 +1155,48 @@ with tabs[4]:
     })
     st.dataframe(show, use_container_width=True, hide_index=True)
 
+    # ── COSTE POR MATRÍCULA ────────────────────────────────────────────────────
+    st.markdown('<div class="sec">Coste por Matrícula por Canal</div>', unsafe_allow_html=True)
+    col5, col6 = st.columns(2)
+
+    _cpm_data = []
+    for _fuente_mkt, _gasto_mkt, _lbl_mkt in [
+        ('GOOGLE ADS',   gasto_google,   'Google Ads'),
+        ('FACEBOOK ADS', gasto_facebook, 'Facebook/Instagram'),
+    ]:
+        _mat_cols_mkt = [c for c in df_f.columns if f'mat_{_fuente_mkt}__' in c]
+        _tot_mats_mkt = df_f[_mat_cols_mkt].sum().sum() if _mat_cols_mkt else 0
+        _cpm_v = _gasto_mkt / _tot_mats_mkt if _tot_mats_mkt > 0 else 0
+        _cpm_data.append({'Canal': _lbl_mkt, 'Gasto': _gasto_mkt, 'Mats': _tot_mats_mkt, 'Coste/Mat': _cpm_v})
+    df_cpm = pd.DataFrame(_cpm_data)
+
+    with col5:
+        fig = go.Figure(go.Bar(
+            x=df_cpm['Canal'],
+            y=df_cpm['Coste/Mat'],
+            marker_color=[C['sky'], C['indigo']],
+            text=[eur(v) if v > 0 else '—' for v in df_cpm['Coste/Mat']],
+            textposition='outside',
+            customdata=np.stack([df_cpm['Gasto'], df_cpm['Mats']], axis=1),
+            hovertemplate='<b>%{x}</b><br>Coste/Mat: %{y:.0f}€<br>Gasto: %{customdata[0]:.0f}€<br>Mats: %{customdata[1]:.0f}<extra></extra>',
+        ))
+        T(fig).update_layout(title='💸 Coste por Matrícula por Canal Pagado')
+        fig.update_yaxes(tickprefix='€')
+        st.plotly_chart(fig, use_container_width=True)
+
+    with col6:
+        _total_cpm = total_gasto / total_mats if total_mats > 0 else 0
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.metric("📊 Coste Medio por Matrícula (todos los canales)", eur(_total_cpm))
+        st.markdown("<br>", unsafe_allow_html=True)
+        _tbl_cpm = pd.DataFrame({
+            'Canal':        df_cpm['Canal'],
+            'Gasto':        df_cpm['Gasto'].apply(eur),
+            'Matrículas':   df_cpm['Mats'].apply(lambda x: f"{x:.0f}"),
+            'Coste/Mat':    df_cpm['Coste/Mat'].apply(lambda x: eur(x) if x > 0 else '—'),
+        })
+        st.dataframe(_tbl_cpm, use_container_width=True, hide_index=True)
+
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 6 · MES ACTUAL (detalle diario + FCST)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1204,6 +1356,100 @@ with tabs[5]:
             delta=f"Obj: {num(fcst_v2)} ({pct_v:.0f}%)",
             delta_color="normal" if pct_v >= 90 else "inverse",
         )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── VELOCIDAD NECESARIA ────────────────────────────────────────────────────
+    st.markdown('<div class="sec">Velocidad Necesaria para Alcanzar el Objetivo</div>', unsafe_allow_html=True)
+    _row_mes_act = df_mes[df_mes['mes'] == mes_actual_num] if mes_actual_num else pd.DataFrame()
+    if not _row_mes_act.empty:
+        _rm = _row_mes_act.iloc[0]
+        _dias_lleva = float(_rm.get('dias_lleva') or 0)
+        _dias_total = float(_rm.get('dias_total') or 1)
+        _dias_rest  = max(_dias_total - _dias_lleva, 1)
+
+        _leads_real  = float(totales_mes.get('leads') or 0)
+        _leads_fcst  = float(fcst_mes.get('leads') or 0)
+        _leads_rest  = max(_leads_fcst - _leads_real, 0)
+        _vel_nec_l   = _leads_rest / _dias_rest if _dias_rest > 0 else 0
+        _vel_act_l   = _leads_real / _dias_lleva if _dias_lleva > 0 else 0
+
+        _mats_real   = float(totales_mes.get('mats') or 0)
+        _mats_proj   = float(_rm.get('mats_proj') or 0)
+        _mats_rest   = max(_mats_proj - _mats_real, 0)
+        _vel_nec_m   = _mats_rest / _dias_rest if _dias_rest > 0 else 0
+        _vel_act_m   = _mats_real / _dias_lleva if _dias_lleva > 0 else 0
+
+        _cv1, _cv2, _cv3, _cv4, _cv5 = st.columns(5)
+        _cv1.metric("📅 Días restantes",
+                    f"{int(_dias_rest)}",
+                    delta=f"de {int(_dias_total)} totales",
+                    delta_color="off")
+        _cv2.metric("⚡ Leads/día (real)",    f"{_vel_act_l:.1f}")
+        _cv3.metric("🎯 Leads/día (necesario)", f"{_vel_nec_l:.1f}",
+                    delta=f"{_vel_nec_l - _vel_act_l:+.1f} vs actual",
+                    delta_color="inverse" if _vel_nec_l > _vel_act_l else "normal")
+        _cv4.metric("⚡ Mats/día (real)",    f"{_vel_act_m:.2f}")
+        _cv5.metric("🎓 Mats/día (necesario)", f"{_vel_nec_m:.2f}",
+                    delta=f"{_vel_nec_m - _vel_act_m:+.2f} vs actual",
+                    delta_color="inverse" if _vel_nec_m > _vel_act_m else "normal")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── PROGRESO VS OBJETIVO MENSUAL ───────────────────────────────────────────
+    st.markdown('<div class="sec">Progreso vs Objetivo Mensual (Proyección)</div>', unsafe_allow_html=True)
+    if not _row_mes_act.empty:
+        _rm2 = _row_mes_act.iloc[0]
+        _mats_proj2 = float(_rm2.get('mats_proj') or 0)
+        _fact_proj2 = float(_rm2.get('fact_proj') or 0)
+        _leads_fcst2 = float(fcst_mes.get('leads') or 0)
+        _mats_real2  = float(totales_mes.get('mats') or 0)
+        _fact_real2  = float(totales_mes.get('fact') or 0)
+        _leads_real2 = float(totales_mes.get('leads') or 0)
+
+        def _bar_col(pct):
+            if pct >= 90: return "#AABCA3"
+            if pct >= 70: return "#BB812F"
+            return "#EE7015"
+
+        _pct_l = min(_leads_real2 / _leads_fcst2 * 100, 100) if _leads_fcst2 > 0 else 0
+        _pct_m = min(_mats_real2  / _mats_proj2  * 100, 100) if _mats_proj2  > 0 else 0
+        _pct_f = min(_fact_real2  / _fact_proj2  * 100, 100) if _fact_proj2  > 0 else 0
+
+        st.markdown(f"""
+<div style="max-width:720px">
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <span style="color:#AABCA3;font-size:.82rem;font-weight:600">🎯 Leads</span>
+      <span style="color:#F6FAB2;font-size:.82rem;font-weight:700">{_leads_real2:.0f} / {_leads_fcst2:.0f} &nbsp;({_pct_l:.0f}%)</span>
+    </div>
+    <div style="background:#0D1820;border-radius:8px;height:16px;overflow:hidden">
+      <div style="background:{_bar_col(_pct_l)};width:{_pct_l:.1f}%;height:100%;border-radius:8px"></div>
+    </div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <span style="color:#AABCA3;font-size:.82rem;font-weight:600">🎓 Matrículas</span>
+      <span style="color:#F6FAB2;font-size:.82rem;font-weight:700">{_mats_real2:.0f} / {_mats_proj2:.0f} &nbsp;({_pct_m:.0f}%)</span>
+    </div>
+    <div style="background:#0D1820;border-radius:8px;height:16px;overflow:hidden">
+      <div style="background:{_bar_col(_pct_m)};width:{_pct_m:.1f}%;height:100%;border-radius:8px"></div>
+    </div>
+  </div>
+  <div style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:5px">
+      <span style="color:#AABCA3;font-size:.82rem;font-weight:600">💰 Facturación</span>
+      <span style="color:#F6FAB2;font-size:.82rem;font-weight:700">{eur(_fact_real2)} / {eur(_fact_proj2)} &nbsp;({_pct_f:.0f}%)</span>
+    </div>
+    <div style="background:#0D1820;border-radius:8px;height:16px;overflow:hidden">
+      <div style="background:{_bar_col(_pct_f)};width:{_pct_f:.1f}%;height:100%;border-radius:8px"></div>
+    </div>
+  </div>
+  <div style="color:#4C4C4C;font-size:.72rem;margin-top:8px">
+    🟢 ≥90% &nbsp;|&nbsp; 🟡 70–89% &nbsp;|&nbsp; 🔴 &lt;70% del objetivo mensual
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ─── FOOTER ──────────────────────────────────────────────────────────────────
 st.markdown("---")
