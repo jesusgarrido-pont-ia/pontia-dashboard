@@ -502,7 +502,15 @@ if isinstance(ultimo_dia, (datetime, pd.Timestamp)):
     st.markdown(f'<div style="color:#808080;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#F6FAB2">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#F6FAB2">{mes_actual_name}</b></div>', unsafe_allow_html=True)
 
 # ─── KPIs GLOBALES ────────────────────────────────────────────────────────────
-st.markdown('<div class="sec">Resumen Acumulado (YTD)</div>', unsafe_allow_html=True)
+# Título dinámico: si el filtro de meses selecciona uno solo, muestra su nombre
+if len(sel_meses_num) == 1:
+    _hdr_title = f"Resumen · {MESES.get(sel_meses_num[0], '')}"
+elif len(sel_meses_num) < len(meses_con_datos):
+    _nombres_sel = " · ".join(MESES.get(m, '') for m in sorted(sel_meses_num))
+    _hdr_title = f"Resumen Filtrado ({_nombres_sel})"
+else:
+    _hdr_title = "Resumen Acumulado (YTD)"
+st.markdown(f'<div class="sec">{_hdr_title}</div>', unsafe_allow_html=True)
 c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
 c1.metric("🎯 Leads",          num(total_leads))
 c2.metric("🎓 Matrículas",     num(total_mats))
@@ -919,8 +927,52 @@ with tabs[2]:
             T(fig).update_layout(coloraxis_showscale=False)
             st.plotly_chart(fig, use_container_width=True)
 
-    # ── CONVERSIÓN POR FUENTE + EMBUDO ────────────────────────────────────────
-    st.markdown('<div class="sec">Conversión por Fuente y Embudo</div>', unsafe_allow_html=True)
+    # ── RANKING DE PROGRAMAS POR RENTABILIDAD ────────────────────────────────
+    st.markdown('<div class="sec">🏆 Ranking de Programas por Rentabilidad</div>', unsafe_allow_html=True)
+    _rank_rows = []
+    for prog in all_progs:
+        lbl = PROG_LABELS.get(prog, prog)
+        _lead_cols_p = [f'lead_{f}__{prog}' for f in set(f for f, _ in LEAD_MAP.values())
+                        if f'lead_{f}__{prog}' in df_f.columns]
+        _mat_cols_p  = [f'mat_{f}__{prog}'  for f in set(f for f, _ in MATS_MAP.values())
+                        if f'mat_{f}__{prog}'  in df_f.columns]
+        _fact_cols_p = [f'fact_{f}__{prog}' for f in set(f for f, _ in FACT_MAP.values())
+                        if f'fact_{f}__{prog}' in df_f.columns]
+        _tot_l = df_f[_lead_cols_p].sum().sum() if _lead_cols_p else 0
+        _tot_m = df_f[_mat_cols_p].sum().sum()  if _mat_cols_p  else 0
+        _tot_f = df_f[_fact_cols_p].sum().sum() if _fact_cols_p else 0
+        _conv_p = _tot_m / _tot_l if _tot_l > 0 else 0
+        _pm_p   = _tot_f / _tot_m if _tot_m > 0 else 0
+        _rank_rows.append({
+            'Programa':    lbl,
+            'Leads':       int(_tot_l),
+            'Matrículas':  round(_tot_m, 1),
+            'Facturación': _tot_f,
+            'Conv %':      _conv_p * 100,
+            'Precio Medio': _pm_p,
+        })
+    if _rank_rows:
+        df_rank = pd.DataFrame(_rank_rows).sort_values('Facturación', ascending=False)
+        _max_f = df_rank['Facturación'].max() or 1
+        st.dataframe(
+            df_rank,
+            column_config={
+                'Programa':    st.column_config.TextColumn('Programa'),
+                'Leads':       st.column_config.NumberColumn('Leads', format='%d'),
+                'Matrículas':  st.column_config.NumberColumn('Matrículas', format='%.1f'),
+                'Facturación': st.column_config.ProgressColumn(
+                    'Facturación', format='€%.0f',
+                    min_value=0, max_value=float(_max_f),
+                ),
+                'Conv %':      st.column_config.NumberColumn('Conv %', format='%.2f%%'),
+                'Precio Medio': st.column_config.NumberColumn('Precio Medio', format='€%.0f'),
+            },
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    # ── CONVERSIÓN POR FUENTE ─────────────────────────────────────────────────
+    st.markdown('<div class="sec">Conversión por Fuente</div>', unsafe_allow_html=True)
     col5, col6 = st.columns(2)
 
     with col5:
@@ -958,17 +1010,37 @@ with tabs[2]:
             st.plotly_chart(fig, use_container_width=True)
 
     with col6:
-        # Funnel: Leads → Matrículas global
-        if total_leads > 0:
-            fig = go.Figure(go.Funnel(
-                y=['🎯 Leads captados', '🎓 Matrículas cerradas'],
-                x=[total_leads, total_mats],
-                textposition='inside',
-                textinfo='value+percent initial',
-                marker=dict(color=[C['sky'], C['indigo']]),
-                connector=dict(line=dict(color='#1a2d3a', width=1)),
+        # Ticket medio por fuente (Facturación / Matrículas por fuente)
+        ticket_data = []
+        for fuente in all_fuentes:
+            lbl = FUENTE_LABELS.get(fuente, fuente)
+            mat_cols_f  = [f'mat_{fuente}__{p}'  for p in set(p for _, p in MATS_MAP.values()) if f'mat_{fuente}__{p}'  in df_f.columns]
+            fact_cols_f = [f'fact_{fuente}__{p}' for p in set(p for _, p in FACT_MAP.values()) if f'fact_{fuente}__{p}' in df_f.columns]
+            tot_mats_f  = df_f[mat_cols_f].sum().sum()  if mat_cols_f  else 0
+            tot_fact_f  = df_f[fact_cols_f].sum().sum() if fact_cols_f else 0
+            if tot_mats_f > 0:
+                ticket_data.append({
+                    'Fuente':         lbl,
+                    'Matrículas':     tot_mats_f,
+                    'Facturación':    tot_fact_f,
+                    'Ticket Medio':   tot_fact_f / tot_mats_f,
+                })
+        if ticket_data:
+            df_ticket = pd.DataFrame(ticket_data).sort_values('Ticket Medio', ascending=True)
+            fig = go.Figure(go.Bar(
+                x=df_ticket['Ticket Medio'],
+                y=df_ticket['Fuente'],
+                orientation='h',
+                marker_color=PAL[:len(df_ticket)],
+                text=[eur(v) for v in df_ticket['Ticket Medio']],
+                textposition='outside',
+                customdata=np.stack([df_ticket['Matrículas'], df_ticket['Facturación']], axis=1),
+                hovertemplate='<b>%{y}</b><br>Ticket Medio: %{x:,.0f}€<br>Mats: %{customdata[0]:.0f}<br>Fact: %{customdata[1]:,.0f}€<extra></extra>',
             ))
-            T(fig).update_layout(title='🔽 Embudo Global: Leads → Matrículas')
+            T(fig).update_layout(
+                title='🏷️ Ticket Medio por Fuente (Fact/Mat)',
+                xaxis=dict(**CHART['xaxis'], tickprefix='€'),
+            )
             st.plotly_chart(fig, use_container_width=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1127,6 +1199,14 @@ with tabs[4]:
     roas_facebook  = fact_fb       / gasto_facebook if gasto_facebook > 0 else 0
     f_vs_g         = total_fact    / total_gasto    if total_gasto    > 0 else 0
 
+    st.markdown(
+        '<div style="background:#1a2d3a;border-left:3px solid #5683D2;border-radius:6px;'
+        'padding:7px 14px;margin-bottom:10px;font-size:.78rem;color:#808080">'
+        '📌 Métricas de <b style="color:#F6FAB2">canales de pago</b> únicamente (Google Ads + Facebook/Instagram Ads). '
+        'No incluye orgánico, email ni referidos.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     c1,c2,c3,c4,c5,c6 = st.columns(6)
     c1.metric("Gasto Google Ads",   eur(gasto_google))
     c2.metric("Gasto Facebook Ads", eur(gasto_facebook))
@@ -1233,8 +1313,59 @@ with tabs[4]:
     })
     st.dataframe(show, use_container_width=True, hide_index=True)
 
+    # ── ANÁLISIS DÍA DE SEMANA ────────────────────────────────────────────────
+    st.markdown('<div class="sec">📅 Leads por Día de la Semana</div>', unsafe_allow_html=True)
+    _dias_semana = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo']
+    df_dow = df_f.copy()
+    df_dow['dia_semana'] = df_dow['fecha'].dt.dayofweek  # 0=Lunes, 6=Domingo
+    df_dow['dia_nombre'] = df_dow['dia_semana'].map(lambda d: _dias_semana[d])
+    # Calcular total de leads por día de semana usando columnas filtradas
+    _lead_cols_all = [c for c in df_f.columns if c.startswith('lead_')]
+    df_dow['leads_calc'] = df_dow[_lead_cols_all].sum(axis=1)
+    _dow_agg = df_dow.groupby(['dia_semana','dia_nombre'])['leads_calc'].agg(['sum','mean','count']).reset_index()
+    _dow_agg.columns = ['dia_num','Día','Total Leads','Media/Día','Semanas']
+    _dow_agg = _dow_agg.sort_values('dia_num')
+
+    _col_dow1, _col_dow2 = st.columns(2)
+    with _col_dow1:
+        _colors_dow = ['#EE7015' if r['Total Leads'] == _dow_agg['Total Leads'].max() else '#5683D2'
+                       for _, r in _dow_agg.iterrows()]
+        fig = go.Figure(go.Bar(
+            x=_dow_agg['Día'],
+            y=_dow_agg['Total Leads'],
+            marker_color=_colors_dow,
+            text=_dow_agg['Total Leads'].apply(lambda x: f"{x:.0f}"),
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>Total: %{y:.0f} leads<extra></extra>',
+        ))
+        T(fig).update_layout(title='📊 Total Leads por Día de la Semana (YTD)')
+        st.plotly_chart(fig, use_container_width=True)
+
+    with _col_dow2:
+        _colors_avg = ['#EE7015' if r['Media/Día'] == _dow_agg['Media/Día'].max() else '#AABCA3'
+                       for _, r in _dow_agg.iterrows()]
+        fig = go.Figure(go.Bar(
+            x=_dow_agg['Día'],
+            y=_dow_agg['Media/Día'],
+            marker_color=_colors_avg,
+            text=[f"{v:.1f}" for v in _dow_agg['Media/Día']],
+            textposition='outside',
+            hovertemplate='<b>%{x}</b><br>Media: %{y:.1f} leads/día<extra></extra>',
+        ))
+        T(fig).update_layout(title='📈 Media de Leads por Día de la Semana')
+        st.plotly_chart(fig, use_container_width=True)
+
     # ── CAC (COSTE DE ADQUISICIÓN DE CLIENTE) ─────────────────────────────────
     st.markdown('<div class="sec">CAC — Coste de Adquisición de Cliente por Canal</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div style="background:#1a2d3a;border-left:3px solid #EE7015;border-radius:6px;'
+        'padding:8px 14px;margin-bottom:14px;font-size:.8rem;color:#AABCA3">'
+        '⚠️ <b style="color:#EE7015">Solo canales de pago:</b> CAC y ROAS se calculan únicamente sobre '
+        '<b>Google Ads y Facebook/Instagram Ads</b>, los únicos canales con coste rastreable. '
+        'Orgánico, Email, RRSS y Referidos no incurren en gasto directo y no entran en este cálculo.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
     col5, col6 = st.columns(2)
 
     _cpm_data = []
@@ -1280,6 +1411,91 @@ with tabs[4]:
 # ══════════════════════════════════════════════════════════════════════════════
 with tabs[5]:
     st.markdown(f'<div class="sec">Detalle Mes Actual: {mes_actual_name}</div>', unsafe_allow_html=True)
+
+    # ── Nota: filtros del sidebar NO aplican a este tab ───────────────────────
+    st.markdown(
+        '<div style="background:#1a2d3a;border-left:3px solid #F6FAB2;border-radius:6px;'
+        'padding:7px 14px;margin-bottom:14px;font-size:.78rem;color:#808080">'
+        '📌 <b style="color:#F6FAB2">Este tab siempre muestra el mes en curso</b> con datos reales del '
+        'sheet DIARIO. Los filtros del sidebar (mes, fuente, programa) <b>no afectan</b> a esta vista.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── PANEL EJECUTIVO: 3 COSAS A SABER HOY ─────────────────────────────────
+    st.markdown('<div class="sec">🔔 3 Cosas a Saber Hoy</div>', unsafe_allow_html=True)
+    _alertas = []
+
+    # 1. Progreso vs objetivo de matrículas
+    _mats_real_pa  = float(totales_mes.get('mats') or 0)
+    _mats_fcst_pa  = float(fcst_mes.get('mats') or 0)
+    _row_pa        = df_mes[df_mes['mes'] == mes_actual_num] if mes_actual_num else pd.DataFrame()
+    _dias_lleva_pa = float(_row_pa.iloc[0].get('dias_lleva') or 1) if not _row_pa.empty else 1
+    _dias_total_pa = float(_row_pa.iloc[0].get('dias_total') or 30) if not _row_pa.empty else 30
+    _dias_rest_pa  = max(_dias_total_pa - _dias_lleva_pa, 1)
+
+    if _mats_fcst_pa > 0:
+        _pct_mats = _mats_real_pa / _mats_fcst_pa * 100
+        _mats_rest_pa = max(_mats_fcst_pa - _mats_real_pa, 0)
+        _vel_nec_pa   = _mats_rest_pa / _dias_rest_pa
+        _vel_act_pa   = _mats_real_pa / _dias_lleva_pa if _dias_lleva_pa > 0 else 0
+        if _pct_mats >= 90:
+            _alertas.append(("🟢", f"Vas al <b>{_pct_mats:.0f}% del objetivo</b> de matrículas "
+                             f"({_mats_real_pa:.0f}/{_mats_fcst_pa:.0f}). ¡Buen ritmo!"))
+        elif _pct_mats >= 70:
+            _alertas.append(("🟡", f"Vas al <b>{_pct_mats:.0f}% del objetivo</b> de matrículas. "
+                             f"Necesitas <b>{_vel_nec_pa:.1f} mats/día</b> vs {_vel_act_pa:.1f} actual "
+                             f"en los {int(_dias_rest_pa)} días restantes."))
+        else:
+            _alertas.append(("🔴", f"Solo al <b>{_pct_mats:.0f}% del objetivo</b> de matrículas. "
+                             f"Necesitas acelerar: <b>{_vel_nec_pa:.1f} mats/día</b> vs {_vel_act_pa:.1f} actual."))
+
+    # 2. CPL vs mes anterior
+    _cpl_cur  = float(totales_mes.get('cpl_media') or 0)
+    _prev_num_pa = (mes_actual_num - 1) if mes_actual_num else None
+    _row_prev_pa = df_mes[df_mes['mes'] == _prev_num_pa] if _prev_num_pa else pd.DataFrame()
+    if not _row_prev_pa.empty and _cpl_cur > 0:
+        _cpl_prev = float(_row_prev_pa.iloc[0].get('cpl') or 0)
+        if _cpl_prev > 0:
+            _cpl_chg = (_cpl_cur - _cpl_prev) / _cpl_prev * 100
+            _cpl_icon = "📉" if _cpl_chg <= 0 else "📈"
+            _cpl_color = "🟢" if _cpl_chg <= 0 else ("🟡" if _cpl_chg < 15 else "🔴")
+            _prev_name_pa = MESES.get(_prev_num_pa, '')
+            _alertas.append((_cpl_color, f"CPL Medio: <b>{eur(_cpl_cur)}</b> {_cpl_icon} "
+                            f"{_cpl_chg:+.1f}% vs {_prev_name_pa} ({eur(_cpl_prev)}). "
+                            + ("Buen trabajo manteniendo la eficiencia." if _cpl_chg <= 5
+                               else "Revisa la segmentación si sigue subiendo.")))
+
+    # 3. Leads: ritmo diario vs mes anterior
+    _leads_cur_pa  = float(totales_mes.get('leads') or 0)
+    _leads_fcst_pa = float(fcst_mes.get('leads') or 0)
+    if not _row_prev_pa.empty and _leads_cur_pa > 0:
+        _leads_prev_pa   = float(_row_prev_pa.iloc[0].get('leads') or 0)
+        _dias_prev_tot   = float(_row_prev_pa.iloc[0].get('dias_total') or 30)
+        _ritmo_cur_pa    = _leads_cur_pa / _dias_lleva_pa if _dias_lleva_pa > 0 else 0
+        _ritmo_prev_pa   = _leads_prev_pa / _dias_prev_tot if _dias_prev_tot > 0 else 0
+        _pct_leads_fcst  = _leads_cur_pa / _leads_fcst_pa * 100 if _leads_fcst_pa > 0 else 0
+        _leads_chg       = (_ritmo_cur_pa - _ritmo_prev_pa) / _ritmo_prev_pa * 100 if _ritmo_prev_pa > 0 else 0
+        _prev_name_pa    = MESES.get(_prev_num_pa, '')
+        _alertas.append(("🟢" if _leads_chg >= 0 else "🟡",
+                         f"Ritmo de leads: <b>{_ritmo_cur_pa:.1f}/día</b> "
+                         f"({'▲' if _leads_chg >= 0 else '▼'}{abs(_leads_chg):.1f}% vs {_prev_name_pa}). "
+                         f"Vas al <b>{_pct_leads_fcst:.0f}%</b> del objetivo mensual de leads."))
+
+    # Mostrar máximo 3 alertas
+    for _icon_a, _txt_a in _alertas[:3]:
+        st.markdown(
+            f'<div style="background:#0D1820;border:1px solid #1a2d3a;border-radius:10px;'
+            f'padding:12px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px">'
+            f'<span style="font-size:1.3rem;line-height:1.4">{_icon_a}</span>'
+            f'<span style="color:#EFEEEA;font-size:.88rem;line-height:1.5">{_txt_a}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    if not _alertas:
+        st.info("Sin suficientes datos para generar alertas ejecutivas.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # KPIs vs FCST
     st.markdown("#### Real vs Objetivo (FCST)")
