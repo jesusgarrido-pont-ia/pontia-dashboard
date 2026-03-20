@@ -447,26 +447,11 @@ if isinstance(ultimo_dia, (datetime, pd.Timestamp)):
     st.markdown(f'<div style="color:#808080;font-size:.85rem;margin-bottom:20px">Último dato: <b style="color:#F6FAB2">{ultimo_dia.strftime("%d/%m/%Y")}</b> · Mes en curso: <b style="color:#F6FAB2">{mes_actual_name}</b></div>', unsafe_allow_html=True)
 
 # ─── KPIs GLOBALES ────────────────────────────────────────────────────────────
-# Variación vs mes anterior
-_meses_ord = sorted(df_mes[df_mes['leads'].notna() & (df_mes['leads'] > 0)]['mes'].tolist())
-_delta_leads = _delta_mats = _delta_fact = None
-if len(_meses_ord) >= 2:
-    _m_ult  = _meses_ord[-1]
-    _m_prev = _meses_ord[-2]
-    _r_ult  = df_mes[df_mes['mes'] == _m_ult].iloc[0]
-    _r_prev = df_mes[df_mes['mes'] == _m_prev].iloc[0]
-    if _r_prev['leads'] and _r_prev['leads'] > 0:
-        _delta_leads = f"{((_r_ult['leads'] or 0) - _r_prev['leads']) / _r_prev['leads'] * 100:+.1f}% vs {MESES[_m_prev]}"
-    if _r_prev['mats'] and _r_prev['mats'] > 0:
-        _delta_mats  = f"{((_r_ult['mats']  or 0) - _r_prev['mats'])  / _r_prev['mats']  * 100:+.1f}% vs {MESES[_m_prev]}"
-    if _r_prev['fact'] and _r_prev['fact'] > 0:
-        _delta_fact  = f"{((_r_ult['fact']  or 0) - _r_prev['fact'])  / _r_prev['fact']  * 100:+.1f}% vs {MESES[_m_prev]}"
-
 st.markdown('<div class="sec">Resumen Acumulado (YTD)</div>', unsafe_allow_html=True)
 c1,c2,c3,c4,c5,c6,c7 = st.columns(7)
-c1.metric("🎯 Leads",          num(total_leads),   delta=_delta_leads)
-c2.metric("🎓 Matrículas",     num(total_mats),    delta=_delta_mats)
-c3.metric("💰 Facturación",    eur(total_fact),    delta=_delta_fact)
+c1.metric("🎯 Leads",          num(total_leads))
+c2.metric("🎓 Matrículas",     num(total_mats))
+c3.metric("💰 Facturación",    eur(total_fact))
 c4.metric("📈 Conversión",     f"{conversion*100:.2f}%")
 c5.metric("🏷️ Precio Medio",  eur(precio_medio))
 c6.metric("💸 Gasto MKT",      eur(total_gasto))
@@ -532,9 +517,29 @@ tabs = st.tabs([
 with tabs[0]:
     st.markdown('<div class="sec">Evolución Mensual de KPIs</div>', unsafe_allow_html=True)
 
-    # Usar df_mes para los datos mensuales (incluye datos projectados del MES sheet)
+    # Usar df_mes para los datos mensuales
     df_m = df_mes[df_mes['mes'].isin(meses_con_datos)].copy()
     df_m['mes_name'] = df_m['mes'].map(MESES)
+
+    # ── Corregir mes actual: el sheet MES puede tener proyecciones; usar datos reales del DIARIO
+    if mes_actual_num and mes_actual_num in df_m['mes'].values:
+        _idx = df_m[df_m['mes'] == mes_actual_num].index
+        if totales_mes.get('leads') is not None:
+            df_m.loc[_idx, 'leads']      = totales_mes['leads']
+        if totales_mes.get('mats') is not None:
+            df_m.loc[_idx, 'mats']       = totales_mes['mats']
+        if totales_mes.get('fact') is not None:
+            df_m.loc[_idx, 'fact']       = totales_mes['fact']
+        if totales_mes.get('gasto_total') is not None:
+            df_m.loc[_idx, 'inversion']  = totales_mes['gasto_total']
+        if totales_mes.get('conversion') is not None:
+            df_m.loc[_idx, 'conversion'] = totales_mes['conversion']
+        if totales_mes.get('cpl_media') is not None:
+            df_m.loc[_idx, 'cpl']        = totales_mes['cpl_media']
+        _fact_r = totales_mes.get('fact') or 0
+        _mats_r = totales_mes.get('mats') or 0
+        if _mats_r > 0:
+            df_m.loc[_idx, 'precio_medio'] = _fact_r / _mats_r
 
     if not df_m.empty:
         col1, col2 = st.columns(2)
@@ -632,10 +637,9 @@ with tabs[0]:
             fig.update_yaxes(tickprefix='€')
             st.plotly_chart(fig, use_container_width=True)
 
-    # Tabla resumen mensual
+    # Tabla resumen mensual (usa df_m ya corregido con datos reales del mes actual)
     st.markdown('<div class="sec">Tabla Resumen Mensual</div>', unsafe_allow_html=True)
-    tbl = df_mes[df_mes['mes'].isin(meses_con_datos)].copy()
-    tbl['mes_name'] = tbl['mes'].map(MESES)
+    tbl = df_m.copy()
     display = pd.DataFrame({
         'Mes':          tbl['mes_name'],
         'Leads':        tbl['leads'].apply(lambda x: num(x) if x else '—'),
@@ -667,37 +671,19 @@ with tabs[1]:
     c4.metric("Directo",             num(leads_directo))
     st.markdown("<br>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-
-    # Leads por fuente (total YTD)
-    with col1:
-        fuente_leads = {}
-        for col_idx, (fuente, prog) in LEAD_MAP.items():
-            col_name = f'lead_{fuente}__{prog}'
-            if col_name in df_f.columns:
-                fuente_leads[FUENTE_LABELS.get(fuente, fuente)] = \
-                    fuente_leads.get(FUENTE_LABELS.get(fuente, fuente), 0) + df_f[col_name].sum()
-        df_fl = pd.DataFrame(list(fuente_leads.items()), columns=['fuente','leads']).sort_values('leads', ascending=False)
-        fig = px.bar(df_fl, x='fuente', y='leads', title='🔍 Leads por Fuente (YTD)',
-                     color='leads', color_continuous_scale=['#111E2D','#5683D2'],
-                     text=df_fl['leads'].apply(lambda x: num(x)))
-        T(fig).update_traces(textposition='outside').update_layout(coloraxis_showscale=False)
-        st.plotly_chart(fig, use_container_width=True)
-
-    # Leads por programa
-    with col2:
-        prog_leads = {}
-        for col_idx, (fuente, prog) in LEAD_MAP.items():
-            col_name = f'lead_{fuente}__{prog}'
-            if col_name in df_f.columns:
-                prog_leads[PROG_LABELS.get(prog, prog)] = \
-                    prog_leads.get(PROG_LABELS.get(prog, prog), 0) + df_f[col_name].sum()
-        df_pl = pd.DataFrame(list(prog_leads.items()), columns=['programa','leads'])
-        df_pl = df_pl[df_pl['leads'] > 0].sort_values('leads', ascending=False)
-        fig = px.pie(df_pl, values='leads', names='programa',
-                     title='🎓 Leads por Programa', color_discrete_sequence=PAL, hole=0.45)
-        T(fig)
-        st.plotly_chart(fig, use_container_width=True)
+    # Leads por fuente (total YTD) — ancho completo
+    fuente_leads = {}
+    for col_idx, (fuente, prog) in LEAD_MAP.items():
+        col_name = f'lead_{fuente}__{prog}'
+        if col_name in df_f.columns:
+            fuente_leads[FUENTE_LABELS.get(fuente, fuente)] = \
+                fuente_leads.get(FUENTE_LABELS.get(fuente, fuente), 0) + df_f[col_name].sum()
+    df_fl = pd.DataFrame(list(fuente_leads.items()), columns=['fuente','leads']).sort_values('leads', ascending=False)
+    fig = px.bar(df_fl, x='fuente', y='leads', title='🔍 Leads por Fuente (YTD)',
+                 color='leads', color_continuous_scale=['#111E2D','#5683D2'],
+                 text=df_fl['leads'].apply(lambda x: num(x)))
+    T(fig).update_traces(textposition='outside').update_layout(coloraxis_showscale=False)
+    st.plotly_chart(fig, use_container_width=True)
 
     # Evolución mensual de leads por fuente
     col3, col4 = st.columns(2)
@@ -1155,8 +1141,8 @@ with tabs[4]:
     })
     st.dataframe(show, use_container_width=True, hide_index=True)
 
-    # ── COSTE POR MATRÍCULA ────────────────────────────────────────────────────
-    st.markdown('<div class="sec">Coste por Matrícula por Canal</div>', unsafe_allow_html=True)
+    # ── CAC (COSTE DE ADQUISICIÓN DE CLIENTE) ─────────────────────────────────
+    st.markdown('<div class="sec">CAC — Coste de Adquisición de Cliente por Canal</div>', unsafe_allow_html=True)
     col5, col6 = st.columns(2)
 
     _cpm_data = []
@@ -1180,14 +1166,14 @@ with tabs[4]:
             customdata=np.stack([df_cpm['Gasto'], df_cpm['Mats']], axis=1),
             hovertemplate='<b>%{x}</b><br>Coste/Mat: %{y:.0f}€<br>Gasto: %{customdata[0]:.0f}€<br>Mats: %{customdata[1]:.0f}<extra></extra>',
         ))
-        T(fig).update_layout(title='💸 Coste por Matrícula por Canal Pagado')
+        T(fig).update_layout(title='💸 CAC por Canal Pagado (Coste de Adquisición de Cliente)')
         fig.update_yaxes(tickprefix='€')
         st.plotly_chart(fig, use_container_width=True)
 
     with col6:
         _total_cpm = total_gasto / total_mats if total_mats > 0 else 0
         st.markdown("<br>", unsafe_allow_html=True)
-        st.metric("📊 Coste Medio por Matrícula (todos los canales)", eur(_total_cpm))
+        st.metric("📊 CAC Medio (todos los canales)", eur(_total_cpm))
         st.markdown("<br>", unsafe_allow_html=True)
         _tbl_cpm = pd.DataFrame({
             'Canal':        df_cpm['Canal'],
@@ -1238,6 +1224,57 @@ with tabs[5]:
     c5.metric("📈 Conversión",     pct(totales_mes.get('conversion', 0)))
     c6.metric("💡 CPL Medio",      eur(totales_mes.get('cpl_media', 0)))
     c7.metric("💰 F vs G MKT",     f"{(totales_mes.get('f_vs_g_pct') or 0)*100:.1f}%" if totales_mes.get('f_vs_g_pct') else '—')
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── VARIACIÓN VS MES ANTERIOR ──────────────────────────────────────────────
+    st.markdown('<div class="sec">📊 Variación vs Mes Anterior</div>', unsafe_allow_html=True)
+    _prev_num = (mes_actual_num - 1) if mes_actual_num else None
+    _row_prev = df_mes[df_mes['mes'] == _prev_num] if _prev_num else pd.DataFrame()
+
+    if not _row_prev.empty:
+        _rp = _row_prev.iloc[0]
+        _prev_name = MESES.get(_prev_num, '')
+
+        # Valores mes actual (DIARIO — reales acumulados)
+        _cur_l  = float(totales_mes.get('leads') or 0)
+        _cur_m  = float(totales_mes.get('mats') or 0)
+        _cur_f  = float(totales_mes.get('fact') or 0)
+        _cur_cv = float(totales_mes.get('conversion') or 0)
+        _cur_g  = float(totales_mes.get('gasto_total') or 0)
+        _cur_pm = _cur_f / _cur_m if _cur_m > 0 else 0
+        _cur_ro = _cur_f / _cur_g if _cur_g > 0 else 0
+
+        # Valores mes anterior (df_mes — mes completo)
+        _prev_l  = float(_rp.get('leads') or 0)
+        _prev_m  = float(_rp.get('mats') or 0)
+        _prev_f  = float(_rp.get('fact') or 0)
+        _prev_cv = float(_rp.get('conversion') or 0)
+        _prev_g  = float(_rp.get('inversion') or 0)
+        _prev_pm = float(_rp.get('precio_medio') or 0)
+        _prev_ro = _prev_f / _prev_g if _prev_g > 0 else 0
+
+        def _dpct(cur, prev):
+            if prev and prev > 0:
+                return f"{(cur - prev) / prev * 100:+.1f}% vs {_prev_name}"
+            return None
+
+        _va1, _va2, _va3, _va4 = st.columns(4)
+        _va1.metric(f"🎯 Leads",       num(_cur_l),             delta=_dpct(_cur_l,  _prev_l))
+        _va2.metric(f"🎓 Matrículas",  num(_cur_m),             delta=_dpct(_cur_m,  _prev_m))
+        _va3.metric(f"💰 Facturación", eur(_cur_f),             delta=_dpct(_cur_f,  _prev_f))
+        _va4.metric(f"📈 Conversión",  f"{_cur_cv*100:.2f}%",   delta=_dpct(_cur_cv, _prev_cv))
+
+        _va5, _va6, _va7, _va8 = st.columns(4)
+        _va5.metric(f"🏷️ Precio Medio", eur(_cur_pm),          delta=_dpct(_cur_pm, _prev_pm))
+        _va6.metric(f"💸 Gasto MKT",    eur(_cur_g),            delta=_dpct(_cur_g,  _prev_g),
+                    delta_color="inverse")   # más gasto = rojo (coste)
+        _va7.metric(f"📣 ROAS",         f"{_cur_ro:.1f}x",      delta=_dpct(_cur_ro, _prev_ro))
+        _va8.markdown("")  # columna vacía para alineación
+
+        st.caption(f"⚠️ {mes_actual_name} muestra datos reales acumulados hasta hoy (no el mes completo). {_prev_name} es el mes completo.")
+    else:
+        st.info("Sin datos del mes anterior para comparar.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
